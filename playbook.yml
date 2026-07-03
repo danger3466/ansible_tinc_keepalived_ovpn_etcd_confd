@@ -1,0 +1,149 @@
+---
+- name: Deploy and configure OpenVPN + tincd + confd + etcd
+  hosts: all
+  become: true
+  tasks:
+    - name: Install apps
+      ansible.builtin.apt:
+        name:
+          - etcd-server
+          - etcd-client
+          - tinc
+          - openvpn
+          - golang-cfssl
+          - python3-etcd3
+        state: present
+        update_cache: true
+
+    - name: Make folders for confd
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0751'
+      loop:
+        - /etc/confd
+        - /etc/confd/conf.d
+        - /etc/confd/templates
+
+    - name: Make folders for etcd
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0751'
+        owner: 'etcd'
+        group: 'etcd'
+      loop:
+        - /etc/etcd/
+        - /etc/etcd/certs
+
+    - name: Make folders for tinc
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0751'
+      loop:
+        - /etc/tinc/intranet/
+        - /etc/tinc/intranet/hosts
+
+    - name: Download confd
+      ansible.builtin.get_url:
+        url: https://github.com/kelseyhightower/confd/releases/download/v0.16.0/confd-0.16.0-linux-amd64
+        dest: /usr/local/bin/confd
+        mode: '0755'
+
+    - name: Add confd.service
+      ansible.builtin.copy:
+        src: files/confd.service
+        dest: /etc/systemd/system/confd.service
+
+    - name: Stop services
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: stopped
+        enabled: true
+      loop:
+        - etcd
+        - confd
+
+    - name: Dynamic configuration etcd
+      ansible.builtin.template:
+        src: templates/etcd.conf.yml.j2
+        dest: /etc/etcd/etcd.conf.yml
+
+    - name: etcd defaults
+      ansible.builtin.copy:
+        src: files/default
+        dest: /etc/default/etcd
+        mode: '0644'
+
+    - name: Create CA
+      ansible.builtin.shell: cd files && cfssl genkey -initca ca-csr.json | cfssljson -bare ca
+      args:
+        creates: files/ca.pem
+      delegate_to: localhost
+      run_once: true
+
+    - name: Create Certs
+      ansible.builtin.shell: cd files && cfssl gencert -ca ca.pem -ca-key ca-key.pem -config ca-config.json -profile etcd-cluster -hostname {{ hostvars[item]['ansible_facts']['default_ipv4']['address'] }} node-csr.json | cfssljson -bare {{item}}
+      args:
+        creates: files/{{ item }}.pem
+      loop: "{{ groups['all'] }}"
+      delegate_to: localhost
+      run_once: true
+
+    - name: Copy certs
+      ansible.builtin.copy:
+        src: files/{{ inventory_hostname }}.pem
+        dest: /etc/etcd/certs/peer.crt
+        mode: '0640'
+        owner: 'root'
+        group: 'etcd'
+
+    - name: Copy keys
+      ansible.builtin.copy:
+        src: files/{{ inventory_hostname }}-key.pem
+        dest: /etc/etcd/certs/peer.key
+        mode: '0640'
+        owner: 'root'
+        group: 'etcd'
+
+    - name: Copy CA
+      ansible.builtin.copy:
+        src: files/ca.pem
+        dest: /etc/etcd/certs/ca.crt
+        mode: '0640'
+        owner: 'root'
+        group: 'etcd'
+
+    - name: Dynamic configuration tinc
+      ansible.builtin.template:
+        src: templates/tinc.conf.j2
+        dest: /etc/tinc/intranet/tinc.conf
+
+    - name: Create Keys for tinc
+      ansible.builtin.shell: tincd -n intranet -K4096
+      args:
+        creates: /etc/tinc/intranet/rsa_key.priv
+      register: tinc_new_key
+
+    - name: Start etcd
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: started
+        enabled: true
+      loop:
+        - etcd
+
+    - name: Put keys in etcd
+      ansible.builtin.shell: etcdctl put tinc/nodes/{{ inventory_hostname }} < /etc/tinc/intranet/hosts/{{ inventory_hostname }}
+      when: tinc_new_key.changed
+
+    - name: Put ip in etcd
+      ansible.builtin.shell: etcdctl put tinc/address/{{ inventory_hostname }} {{ ansible_facts['default_ipv4']['address'] }}
+      when: tinc_new_key.changed
+
+    - name: Get hosts for tinc
+      ansible.builtin.template:
+        src: templates/hosts.j2
+        dest: /etc/tinc/intranet/hosts/{{ item }}
+      loop: "{{ groups['all'] }}"

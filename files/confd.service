@@ -1,0 +1,12 @@
+[Unit]
+Description=Confd Configuration Management
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/confd -watch -backend etcd -node http://127.0.0.1:2379
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

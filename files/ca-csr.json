@@ -1,0 +1,15 @@
+{
+  "CN": "Etcd Root CA",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "RU",
+      "L": "Yekaterinburg",
+      "O": "Etcd",
+      "OU": "Security"
+    }
+  ]
+}

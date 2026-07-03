@@ -1,0 +1,10 @@
+Name = {{ inventory_hostname }}
+Interface = tap0
+Mode=switch
+Port = 665
+
+{% for host in groups['all'] %}
+{% if not host == inventory_hostname %}
+ConnectTo = {{ host }}
+{% endif %}
+{% endfor %}
