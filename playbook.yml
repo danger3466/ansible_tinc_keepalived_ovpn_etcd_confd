@@ -1,3 +1,5 @@
+
+
 ---
 - name: Deploy and configure OpenVPN + tincd + confd + etcd
   hosts: all
@@ -12,6 +14,7 @@
           - openvpn
           - golang-cfssl
           - python3-etcd3
+          - keepalived
         state: present
         update_cache: true
 
@@ -115,10 +118,22 @@
         owner: 'root'
         group: 'etcd'
 
+    - name: Start etcd
+      ansible.builtin.service:
+        name: etcd
+        state: started
+        enabled: true
+
     - name: Dynamic configuration tinc
       ansible.builtin.template:
         src: templates/tinc.conf.j2
         dest: /etc/tinc/intranet/tinc.conf
+
+    - name: "Dynamic interfaces.d: tap0"
+      ansible.builtin.template:
+        src: templates/tap0.j2
+        dest: /etc/network/interfaces.d/tap0
+      register: tap0
 
     - name: Create Keys for tinc
       ansible.builtin.shell: tincd -n intranet -K4096
@@ -126,24 +141,77 @@
         creates: /etc/tinc/intranet/rsa_key.priv
       register: tinc_new_key
 
-    - name: Start etcd
-      ansible.builtin.service:
-        name: "{{ item }}"
-        state: started
-        enabled: true
-      loop:
-        - etcd
-
     - name: Put keys in etcd
-      ansible.builtin.shell: etcdctl put tinc/nodes/{{ inventory_hostname }} < /etc/tinc/intranet/hosts/{{ inventory_hostname }}
+      ansible.builtin.shell: etcdctl put /tinc/nodes/{{ inventory_hostname }} < /etc/tinc/intranet/hosts/{{ inventory_hostname }}
       when: tinc_new_key.changed
 
     - name: Put ip in etcd
-      ansible.builtin.shell: etcdctl put tinc/address/{{ inventory_hostname }} {{ ansible_facts['default_ipv4']['address'] }}
+      ansible.builtin.shell: etcdctl put /tinc/address/{{ inventory_hostname }} {{ ansible_facts['default_ipv4']['address'] }}
       when: tinc_new_key.changed
+
+    - name: Dafault master
+      ansible.builtin.shell: etcdctl put /ip/192.168.11.1 {{ groups['all'] | first }}
+      when: lookup('community.general.etcd3', '/ip/192.168.11.1').value | default(none) is none
+      run_once: true
 
     - name: Get hosts for tinc
       ansible.builtin.template:
         src: templates/hosts.j2
         dest: /etc/tinc/intranet/hosts/{{ item }}
       loop: "{{ groups['all'] }}"
+
+    - name: restart networking
+      ansible.builtin.service:
+        name: networking
+        state: restarted
+      when: tap0.changed
+
+    - name: restart networking
+      ansible.builtin.service:
+        name: tinc
+        state: restarted
+      when: tap0.changed
+
+    - name: Start tinc
+      ansible.builtin.service:
+        name: tinc
+        state: started
+        enabled: true
+
+    - name: confd keepalived.conf template
+      ansible.builtin.template:
+        src: templates/keepalived.conf.tmpl.j2
+        dest: /etc/confd/templates/keepalived.conf.tmpl
+      register: template_keepalived
+
+    - name: confd keepalived.toml
+      ansible.builtin.copy:
+        src: files/keepalived.toml
+        dest: /etc/confd/conf.d/keepalived.toml
+
+    - name: confd.toml
+      ansible.builtin.copy:
+        src: files/confd.toml
+        dest: /etc/confd/confd.toml
+
+    - name: Restart confd and keepalived
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: restarted
+        enabled: true
+      when: template_keepalived.changed
+      loop:
+        - confd
+        - keepalived
+
+    - name: Start confd
+      ansible.builtin.service:
+        name: confd
+        state: started
+        enabled: true
+
+    - name: Start keepalived
+      ansible.builtin.service:
+        name: keepalived
+        state: started
+        enabled: true

@@ -1,2 +1,2 @@
-Address = {{ lookup('community.general.etcd3', ('tinc/address/' +  item)).value | default() }}
-{{ lookup('community.general.etcd3', ('tinc/nodes/' +  item )).value | default() }}
+Address = {{ lookup('community.general.etcd3', ('/tinc/address/' +  item)).value | default() }} 665
+{{ lookup('community.general.etcd3', ('/tinc/nodes/' +  item )).value | default() }}

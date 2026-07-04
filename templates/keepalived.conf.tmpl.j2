@@ -1,0 +1,19 @@
+{{ '{{' }}range gets "/ip/*"{{ '}}' }}
+{{ '{{' }}$ip := split (base .Key) "."{{ '}}' }}
+vrrp_instance {{ '{{' }}.Key{{ '}}' }} {
+    state {{ '{{' }}if eq .Value "{{ inventory_hostname }}"{{ '}}' }}MASTER{{ '{{' }}else{{ '}}' }}BACKUP{{ '{{' }}end{{ '}}' }}
+    interface tap0
+    virtual_router_id {{ '{{' }}index $ip 3{{ '}}' }}
+    priority {{ '{{' }}if eq .Value "{{ inventory_hostname }}"{{ '}}' }}100{{ '{{' }}else{{ '}}' }}50{{ '{{' }}end{{ '}}' }}
+    advert_int 1
+
+    authentication {
+        auth_type PASS
+        auth_pass secret
+    }
+
+    virtual_ipaddress {
+        {{ '{{' }}base .Key{{ '}}' }}
+    }
+}
+{{ '{{' }}end{{ '}}' }}

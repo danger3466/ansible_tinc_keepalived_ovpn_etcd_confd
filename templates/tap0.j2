@@ -1,0 +1,6 @@
+auto tap0
+iface tap0 inet static
+	address 192.168.11.{{ ansible_facts['default_ipv4']['address'].split('.')[3] }}/24
+	pre-up ip tuntap add dev $IFACE mode tap
+	post-down ip tuntap del dev $IFACE mode tap
+	tinc-net intranet
