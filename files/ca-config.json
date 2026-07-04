@@ -1,18 +1,33 @@
 {
-  "signing": {
-    "default": {
-      "expiry": "87600h"
-    },
-    "profiles": {
-      "etcd-cluster": {
-        "usages": [
-          "signing",
-          "key encipherment",
-          "server auth",
-          "client auth"
-        ],
-        "expiry": "87600h"
+   "signing":{
+      "default":{
+         "expiry":"87600h"
+      },
+      "profiles":{
+         "etcd-cluster":{
+            "usages":[
+               "signing",
+               "key encipherment",
+               "server auth",
+               "client auth"
+            ],
+            "expiry":"87600h"
+         },
+         "ovpn-server":{
+            "expiry":"43800h",
+            "usages":[
+               "digital signature",
+               "key encipherment",
+               "server auth"
+            ]
+         },
+         "ovpn-client":{
+            "expiry":"43800h",
+            "usages":[
+               "signing",
+               "client auth"
+            ]
+         }
       }
-    }
-  }
+   }
 }

@@ -1,0 +1,7 @@
+[template]
+src = "users.tmpl"
+dest = "/etc/openvpn/users"
+mode = "0640"
+keys = [
+  "/users"
+]

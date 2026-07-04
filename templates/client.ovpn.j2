@@ -1,0 +1,25 @@
+{% for host in groups['all'] %}
+remote {{ hostvars[host]['ansible_facts']['default_ipv4']['address'] }} 1914
+{% endfor %}
+tls-client
+remote-cert-tls server
+nobind
+proto tcp-client
+dev tun0
+pull
+resolv-retry infinite
+persist-tun
+persist-key
+verb 3
+route-method exe
+route-delay 2
+auth-user-pass
+<ca>
+{{ lookup('ansible.builtin.file', '/etc/openvpn/certs/ca.crt') }}
+</ca>
+<cert>
+{{ lookup('ansible.builtin.file', '/etc/openvpn/certs/client.crt') }}
+</cert>
+<key>
+{{ lookup('ansible.builtin.file', '/etc/openvpn/certs/client.key') }}
+</key>
