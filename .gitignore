@@ -1,2 +1,3 @@
 files/*.pem
 files/*.csr
+inventory.ini

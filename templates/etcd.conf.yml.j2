@@ -1,3 +1,4 @@
+
 name: '{{ inventory_hostname }}'
 data-dir: /var/lib/etcd
 
@@ -8,7 +9,7 @@ initial-advertise-peer-urls: 'https://{{ ansible_facts['default_ipv4']['address'
 #advertise-client-urls: 'https://10.10.0.11:2379'
 
 # Cluster Topology Blueprint
-initial-cluster: '{% for host in groups['all'] %}{{ (host + '=https://' + hostvars[host]['ansible_facts']['default_ipv4']['address'] + ':2380') }}{% if not loop.last %}, {% endif %}{% endfor %}'
+initial-cluster: '{% for host in groups['all'] %}{{ (host + '=https://' + hostvars[host]['ansible_facts']['default_ipv4']['address'] + ':2380') }}{% if not loop.last %},{% endif %}{% endfor %}'
 initial-cluster-token: 'etcd-prod-token'
 initial-cluster-state: 'new'
 strict-reconfig-check: true
